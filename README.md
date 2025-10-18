@@ -1,6 +1,6 @@
 # Neutron Agent Builder
 
-AI-Powered Agent Creation Platform built with React, Vite, Node.js, Express, Supabase, and OpenAI.
+AI-Powered Agent Creation Platform built with React, Vite, Node.js, Express, Supabase, and n8n.
 
 ## Project Structure
 
@@ -30,8 +30,8 @@ neutron-agent-builder/
 ### Backend
 - Node.js with Express
 - Supabase (Database & Auth)
-- OpenAI API (AI capabilities)
-- CORS & dotenv
+- n8n Webhooks (Agent Deployment & Lead Intake)
+- body-parser, node-fetch, CORS & dotenv
 
 ## Setup Instructions
 
@@ -45,9 +45,10 @@ cp .env.example .env
 
 Required environment variables:
 - `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_ANON_KEY` - Your Supabase anonymous key
-- `OPENAI_API_KEY` - Your OpenAI API key
-- `PORT` - Server port (default: 5000)
+- `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key (required for admin operations)
+- `N8N_DEPLOY_WEBHOOK_URL` - Your n8n webhook URL for agent deployment
+- `N8N_LEAD_INTAKE_WEBHOOK_URL` - Your n8n webhook URL for lead intake
+- `PORT` - Server port (default: 8787)
 
 ### 2. Install Dependencies
 
@@ -65,7 +66,15 @@ cd ..
 
 ### 3. Run the Application
 
-**Development Mode:**
+**Quick Start (recommended):**
+```bash
+npm start
+```
+This will run both frontend and backend concurrently:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8787
+
+**Or run separately:**
 
 Terminal 1 - Frontend (Vite dev server):
 ```bash
@@ -77,7 +86,7 @@ Terminal 2 - Backend (Express server):
 ```bash
 npm run server
 ```
-Backend will run on http://localhost:5000
+Backend will run on http://localhost:8787
 
 **Or use nodemon for auto-reload:**
 ```bash
@@ -85,6 +94,9 @@ npm run server:dev
 ```
 
 ## Available Scripts
+
+### Combined
+- `npm start` - Run both frontend and backend concurrently (recommended for development)
 
 ### Frontend
 - `npm run dev` - Start Vite development server
@@ -97,9 +109,61 @@ npm run server:dev
 
 ## API Endpoints
 
-- `GET /api/health` - Health check endpoint
-- `GET /api/agents` - Fetch all agents from Supabase
-- `POST /api/chat` - Send a message to OpenAI
+### POST /api/agents
+Create and deploy a new AI agent.
+
+**Request Body:**
+```json
+{
+  "name": "Lead Follow-Up Agent",
+  "config": {
+    "greeting": "Hi! How can I help you today?",
+    "model": "gpt-4"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "agentId": "uuid",
+  "status": "active"
+}
+```
+
+### GET /api/agents/:id/status
+Get the latest execution runs for a specific agent.
+
+**Response:**
+```json
+{
+  "ok": true,
+  "runs": [
+    {
+      "id": "uuid",
+      "agent_id": "uuid",
+      "status": "success",
+      "created_at": "2025-10-18T12:00:00Z"
+    }
+  ]
+}
+```
+
+## Architecture
+
+1. **Agent Creation Flow:**
+   - Frontend sends agent configuration to `/api/agents`
+   - Backend saves agent to Supabase with status "deploying"
+   - Backend triggers n8n webhook with agent configuration
+   - n8n sets up the agent workflow
+   - Backend updates agent status to "active"
+
+2. **Agent Execution:**
+   - Leads come in via n8n webhook
+   - n8n processes the lead and executes agent logic
+   - Results are stored in `agent_runs` table
+   - Frontend can query `/api/agents/:id/status` for execution history
 
 ## Next Steps
 
@@ -119,8 +183,8 @@ npm run server:dev
 ### Backend Dependencies
 - express
 - @supabase/supabase-js
-- openai
-- axios
+- node-fetch
+- body-parser
 - cors
 - dotenv
 - nodemon (dev)
