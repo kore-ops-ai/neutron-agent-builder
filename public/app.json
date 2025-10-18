@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "app": {
+    "name": "Neutron Agent Builder",
+    "description": "Build, deploy, and manage real AI automation agents natively inside ChatGPT  no coding required.",
+    "contact_email": "koreops.ai@gmail.com",
+    "legal_info_url": "https://www.notion.so/Neutron-Agent-Builder-Legal-Privacy-Policy-29088cf7d406806d81aed7c28abfbf31?showMoveTo=true&saveParent=true&deepLinkOpenNewTab=true",
+    "components": {
+      "canvas": {
+        "type": "react",
+        "entry_point": "src/App.jsx"
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "create_agent",
+      "description": "Create a new AI agent using drag-and-drop builder",
+      "ui": "canvas"
+    },
+    {
+      "name": "deploy_agent",
+      "description": "Deploy an agent with integrated email, webhook, and Supabase automation",
+      "ui": "canvas"
+    },
+    {
+      "name": "manage_agents",
+      "description": "View and configure existing agents",
+      "ui": "canvas"
+    }
+  ]
+}
