@@ -20,20 +20,24 @@ export default function GmailConnect({ userEmail, onConnected }) {
     if (!userEmail) return;
     const userId = 'default-user'; // Replace with actual user auth later
     const result = await emailAccountsAPI.getGmailTokens(userId, userEmail);
+    console.log('[GmailConnect] checkConnection result:', result);
     setIsConnected(result.success && result.data?.gmail_connected);
   }
 
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      console.log('[GmailConnect] OAuth success! Token response:', tokenResponse);
       setConnecting(true);
       setError(null);
 
       try {
         // Check if we got a refresh token
         if (!tokenResponse.refresh_token) {
+          console.error('[GmailConnect] No refresh_token in response!');
           throw new Error('No refresh token received. Please revoke access at myaccount.google.com/permissions and try again.');
         }
 
+        console.log('[GmailConnect] Saving tokens to database for:', userEmail);
         // Save tokens to Supabase
         const userId = 'default-user';
         const result = await emailAccountsAPI.saveGmailTokens(userId, userEmail, {
@@ -42,7 +46,10 @@ export default function GmailConnect({ userEmail, onConnected }) {
           expires_in: tokenResponse.expires_in
         });
 
+        console.log('[GmailConnect] Save result:', result);
+
         if (result.success) {
+          console.log('[GmailConnect] Tokens saved successfully!');
           setIsConnected(true);
           if (onConnected) onConnected(tokenResponse);
         } else {
@@ -50,7 +57,7 @@ export default function GmailConnect({ userEmail, onConnected }) {
         }
       } catch (err) {
         setError(err.message);
-        console.error('Error saving Gmail tokens:', err);
+        console.error('[GmailConnect] Error saving Gmail tokens:', err);
       } finally {
         setConnecting(false);
       }
