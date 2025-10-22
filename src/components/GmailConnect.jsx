@@ -29,11 +29,16 @@ export default function GmailConnect({ userEmail, onConnected }) {
       setError(null);
 
       try {
+        // Check if we got a refresh token
+        if (!tokenResponse.refresh_token) {
+          throw new Error('No refresh token received. Please revoke access at myaccount.google.com/permissions and try again.');
+        }
+
         // Save tokens to Supabase
         const userId = 'default-user';
         const result = await emailAccountsAPI.saveGmailTokens(userId, userEmail, {
           access_token: tokenResponse.access_token,
-          refresh_token: tokenResponse.refresh_token || '',
+          refresh_token: tokenResponse.refresh_token,
           expires_in: tokenResponse.expires_in
         });
 
@@ -41,7 +46,7 @@ export default function GmailConnect({ userEmail, onConnected }) {
           setIsConnected(true);
           if (onConnected) onConnected(tokenResponse);
         } else {
-          throw new Error(result.error);
+          throw new Error(result.error || 'Failed to save Gmail tokens to database');
         }
       } catch (err) {
         setError(err.message);
@@ -51,11 +56,14 @@ export default function GmailConnect({ userEmail, onConnected }) {
       }
     },
     onError: (error) => {
-      setError('Failed to connect Gmail');
+      setError('Failed to connect Gmail: ' + (error.error_description || error.message || 'Unknown error'));
       console.error('Gmail OAuth error:', error);
     },
     scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
-    flow: 'auth-code'
+    flow: 'auth-code',
+    // Force consent screen to always show and return refresh_token
+    prompt: 'consent',
+    access_type: 'offline'
   });
 
   return (
