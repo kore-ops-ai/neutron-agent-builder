@@ -259,6 +259,29 @@ export default function App() {
     okToast('Account loaded!');
   }
 
+  async function deleteEmailAccount(accountId, accountEmail) {
+    if (!confirm(`Are you sure you want to delete the account for ${accountEmail}?`)) {
+      return;
+    }
+
+    try {
+      const result = await emailAccountsAPI.delete(accountId);
+      if (result.success) {
+        okToast('Account deleted!');
+        // Reload accounts
+        const userId = 'default-user';
+        const allAccounts = await emailAccountsAPI.getAll(userId);
+        if (allAccounts.success) {
+          setSavedAccounts(allAccounts.data);
+        }
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e) {
+      errToast(e.message || 'Failed to delete account');
+    }
+  }
+
   function pickTemplate(id) {
     setTemplateId(id);
     const t = TEMPLATES.find(x => x.id === id);
@@ -526,20 +549,34 @@ export default function App() {
                 <div className="text-xs text-white/60 mb-2">Saved Accounts</div>
                 <div className="grid gap-2">
                   {savedAccounts.map(account => (
-                    <button
+                    <div
                       key={account.id}
-                      onClick={() => loadSavedAccount(account)}
-                      className="text-left p-3 rounded bg-white/5 hover:bg-white/10 transition">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium">{account.name}</div>
-                          <div className="text-xs text-white/50">{account.email}</div>
+                      className="p-3 rounded bg-white/5 border border-white/10 flex items-center justify-between group hover:border-white/20 transition">
+                      <button
+                        onClick={() => loadSavedAccount(account)}
+                        className="flex-1 text-left">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">{account.name}</div>
+                            <div className="text-xs text-white/50">{account.email}</div>
+                          </div>
+                          {account.is_default && (
+                            <span className="text-xs px-2 py-1 rounded bg-white/10 text-white/60">Default</span>
+                          )}
                         </div>
-                        {account.is_default && (
-                          <span className="text-xs px-2 py-1 rounded bg-white/10 text-white/60">Default</span>
-                        )}
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteEmailAccount(account.id, account.email);
+                        }}
+                        className="ml-2 p-2 rounded hover:bg-red-500/20 text-white/50 hover:text-red-400 transition"
+                        title="Delete account">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
