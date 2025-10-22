@@ -332,6 +332,14 @@ export default function App() {
     try {
       if (!N8N_URL) throw new Error('Missing VITE_N8N_LEAD_INTAKE_URL');
 
+      // Check if user has connected Gmail
+      const userId = 'default-user';
+      const gmailTokensResult = await emailAccountsAPI.getGmailTokens(userId, userEmail);
+
+      if (!gmailTokensResult.success || !gmailTokensResult.data?.gmail_connected) {
+        throw new Error('Please connect your Gmail account first in Email Account Settings');
+      }
+
       // Replace placeholders in system prompt with actual business context
       const contextualizedPrompt = systemPrompt
         .replace(/\{\{COMPANY_NAME\}\}/g, userCompany || 'Your Company')
@@ -340,6 +348,7 @@ export default function App() {
         .replace(/\{\{VALUE_PROPOSITION\}\}/g, valueProposition || 'your value proposition')
         .replace(/\{\{EMAIL_SIGNATURE\}\}/g, emailSignature || `Best regards,\n${userName}`);
 
+      // Step 1: Get AI-generated draft from n8n (n8n no longer sends email)
       const payload = {
         agentId,
         leadName: 'John Doe',
@@ -352,8 +361,7 @@ export default function App() {
           gmailEnabled,
           memoryStrategy,
           agentName,
-          systemPrompt: contextualizedPrompt, // Send contextualized prompt
-          // Email Account Settings
+          systemPrompt: contextualizedPrompt,
           emailAccount: {
             userEmail,
             userName,
@@ -365,13 +373,61 @@ export default function App() {
           }
         }
       };
+
       const res = await fetch(N8N_URL, {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`n8n ${res.status}`);
-      okToast('Test sent to n8n');
+
+      if (!res.ok) throw new Error(`n8n returned ${res.status}`);
+
+      const aiResponse = await res.json();
+
+      // Extract the reply from the AI response
+      let emailBody = '';
+      try {
+        const parsed = JSON.parse(aiResponse.reply || '{}');
+        emailBody = parsed.reply || aiResponse.reply;
+      } catch {
+        emailBody = aiResponse.reply || aiResponse.message || 'No reply generated';
+      }
+
+      // Step 2: Send email using user's Gmail OAuth
+      const { sendGmailMessage, refreshGmailToken, isTokenExpired } = await import('./lib/gmail.js');
+
+      let accessToken = gmailTokensResult.data.gmail_access_token;
+
+      // Check if token expired and refresh if needed
+      if (isTokenExpired(gmailTokensResult.data.gmail_token_expiry)) {
+        const refreshResult = await refreshGmailToken(
+          gmailTokensResult.data.gmail_refresh_token,
+          import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          import.meta.env.VITE_GOOGLE_CLIENT_SECRET
+        );
+
+        if (refreshResult.access_token) {
+          accessToken = refreshResult.access_token;
+          // Save new token to database
+          await emailAccountsAPI.saveGmailTokens(userId, userEmail, {
+            access_token: refreshResult.access_token,
+            refresh_token: gmailTokensResult.data.gmail_refresh_token,
+            expires_in: refreshResult.expires_in || 3600
+          });
+        }
+      }
+
+      // Send email via Gmail API
+      await sendGmailMessage({
+        accessToken,
+        to: testEmail,
+        from: userEmail,
+        fromName: userName,
+        subject: `Re: Your inquiry about ${userCompany}`,
+        body: emailBody
+      });
+
+      okToast(`Email sent from ${userEmail}!`);
     } catch (e) {
       errToast(e.message || 'Test failed');
     } finally { setBusy(false); }
