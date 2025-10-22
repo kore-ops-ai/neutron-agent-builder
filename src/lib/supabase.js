@@ -26,6 +26,9 @@ export const emailAccountsAPI = {
    * @param {string} account.name - User name
    * @param {string} account.company - Company name
    * @param {string} account.signature - Email signature
+   * @param {string} account.businessDescription - Business description
+   * @param {string} account.productsServices - Products/services offered
+   * @param {string} account.valueProposition - Value proposition
    * @param {boolean} account.isDefault - Set as default account
    */
   async save(account) {
@@ -47,6 +50,9 @@ export const emailAccountsAPI = {
             name: account.name,
             company: account.company,
             signature: account.signature,
+            business_description: account.businessDescription || '',
+            products_services: account.productsServices || '',
+            value_proposition: account.valueProposition || '',
             is_default: account.isDefault || false,
             updated_at: new Date().toISOString()
           })
@@ -63,6 +69,9 @@ export const emailAccountsAPI = {
             name: account.name,
             company: account.company,
             signature: account.signature,
+            business_description: account.businessDescription || '',
+            products_services: account.productsServices || '',
+            value_proposition: account.valueProposition || '',
             is_default: account.isDefault || false
           })
           .select()

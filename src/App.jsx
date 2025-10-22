@@ -12,8 +12,13 @@ const TEMPLATES = [
     name: 'Sales Assistant',
     description: 'Qualifies inbound leads and drafts concise replies.',
     systemPrompt: `
-You are an AI Sales Qualification and Response Agent named "Neutron AI".
-1) Qualify inbound leads, 2) identify intent/priority, 3) generate a customized reply.
+You are an AI Sales Qualification and Response Agent for {{COMPANY_NAME}}.
+Your job: 1) Qualify inbound leads, 2) identify intent/priority, 3) generate a customized reply.
+
+IMPORTANT - You are responding ON BEHALF OF {{COMPANY_NAME}}:
+Business: {{BUSINESS_DESCRIPTION}}
+What we sell: {{PRODUCTS_SERVICES}}
+Value proposition: {{VALUE_PROPOSITION}}
 
 Use the provided lead fields (name, email, company, message, source).
 
@@ -26,12 +31,11 @@ Rules for "tone": friendly (SMBs/startups), professional (enterprise), concise (
 
 Reply requirements:
 - 3–5 sentences
-- Personalize by referencing the lead’s message
+- Personalize by referencing the lead's message
+- Talk about OUR products/services ({{PRODUCTS_SERVICES}}), NOT about AI agents or unrelated topics
 - Clear value + a call-to-action (book a call, share details, etc.)
 - Paragraphs with double line breaks
-- End with:
-Best regards,
-Neutron AI
+- End with the signature from email settings ({{EMAIL_SIGNATURE}})
 
 Return ONLY this JSON:
 {
@@ -191,6 +195,9 @@ export default function App() {
   const [userName, setUserName] = useState('Your Name');
   const [userCompany, setUserCompany] = useState('Your Company');
   const [emailSignature, setEmailSignature] = useState('Best regards,\nThe Team');
+  const [businessDescription, setBusinessDescription] = useState('');
+  const [productsServices, setProductsServices] = useState('');
+  const [valueProposition, setValueProposition] = useState('');
   const [savedAccounts, setSavedAccounts] = useState([]);
   const [savingAccount, setSavingAccount] = useState(false);
 
@@ -215,6 +222,9 @@ export default function App() {
           setUserName(defaultAccount.name);
           setUserCompany(defaultAccount.company);
           setEmailSignature(defaultAccount.signature || '');
+          setBusinessDescription(defaultAccount.business_description || '');
+          setProductsServices(defaultAccount.products_services || '');
+          setValueProposition(defaultAccount.value_proposition || '');
         }
       }
     }
@@ -231,6 +241,9 @@ export default function App() {
         name: userName,
         company: userCompany,
         signature: emailSignature,
+        businessDescription,
+        productsServices,
+        valueProposition,
         isDefault: savedAccounts.length === 0 // First account is default
       });
 
@@ -256,6 +269,9 @@ export default function App() {
     setUserName(account.name);
     setUserCompany(account.company);
     setEmailSignature(account.signature || '');
+    setBusinessDescription(account.business_description || '');
+    setProductsServices(account.products_services || '');
+    setValueProposition(account.value_proposition || '');
     okToast('Account loaded!');
   }
 
@@ -315,6 +331,15 @@ export default function App() {
     setBusy(true);
     try {
       if (!N8N_URL) throw new Error('Missing VITE_N8N_LEAD_INTAKE_URL');
+
+      // Replace placeholders in system prompt with actual business context
+      const contextualizedPrompt = systemPrompt
+        .replace(/\{\{COMPANY_NAME\}\}/g, userCompany || 'Your Company')
+        .replace(/\{\{BUSINESS_DESCRIPTION\}\}/g, businessDescription || 'your business')
+        .replace(/\{\{PRODUCTS_SERVICES\}\}/g, productsServices || 'your products/services')
+        .replace(/\{\{VALUE_PROPOSITION\}\}/g, valueProposition || 'your value proposition')
+        .replace(/\{\{EMAIL_SIGNATURE\}\}/g, emailSignature || `Best regards,\n${userName}`);
+
       const payload = {
         agentId,
         leadName: 'John Doe',
@@ -327,13 +352,16 @@ export default function App() {
           gmailEnabled,
           memoryStrategy,
           agentName,
-          systemPrompt,
+          systemPrompt: contextualizedPrompt, // Send contextualized prompt
           // Email Account Settings
           emailAccount: {
             userEmail,
             userName,
             userCompany,
-            emailSignature
+            emailSignature,
+            businessDescription,
+            productsServices,
+            valueProposition
           }
         }
       };
@@ -508,6 +536,40 @@ export default function App() {
                     value={emailSignature}
                     onChange={e=>setEmailSignature(e.target.value)}
                     placeholder="Best regards,&#10;Your Name&#10;Your Title&#10;Company Name"
+                    className="bg-white/5 rounded p-2 border border-white/10 text-sm"/>
+                </label>
+              </div>
+            </div>
+
+            {/* Business Context - for AI agent */}
+            <div className="border-t border-white/10 pt-4 mt-4">
+              <div className="text-xs text-white/60 mb-3 font-medium">Business Context (helps AI respond accurately)</div>
+              <div className="space-y-3">
+                <label className="grid gap-1">
+                  <span className="text-xs text-white/60">What does your business do?</span>
+                  <textarea
+                    rows={2}
+                    value={businessDescription}
+                    onChange={e=>setBusinessDescription(e.target.value)}
+                    placeholder="We sell premium camera holsters for professional photographers"
+                    className="bg-white/5 rounded p-2 border border-white/10 text-sm"/>
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-xs text-white/60">What products/services do you offer?</span>
+                  <textarea
+                    rows={2}
+                    value={productsServices}
+                    onChange={e=>setProductsServices(e.target.value)}
+                    placeholder="Camera holsters, lens cases, photography accessories"
+                    className="bg-white/5 rounded p-2 border border-white/10 text-sm"/>
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-xs text-white/60">What's your value proposition?</span>
+                  <textarea
+                    rows={2}
+                    value={valueProposition}
+                    onChange={e=>setValueProposition(e.target.value)}
+                    placeholder="Fast-access holsters that keep your camera secure and ready to shoot"
                     className="bg-white/5 rounded p-2 border border-white/10 text-sm"/>
                 </label>
               </div>
