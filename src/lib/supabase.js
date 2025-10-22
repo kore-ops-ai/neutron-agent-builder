@@ -188,7 +188,6 @@ export const emailAccountsAPI = {
         .select('gmail_access_token, gmail_refresh_token, gmail_token_expiry, gmail_connected')
         .eq('user_id', userId)
         .eq('email', email)
-        .eq('gmail_connected', true)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
