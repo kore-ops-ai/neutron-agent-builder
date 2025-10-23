@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { emailAccountsAPI } from '../lib/supabase';
+import { getBrowserUserId } from '../lib/userId';
 
 /**
  * Gmail Connect Button Component
@@ -12,6 +13,7 @@ export default function GmailConnect({ userEmail, onConnected }) {
 
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const REDIRECT_URI = window.location.origin;
+  const userId = getBrowserUserId(); // Unique ID per browser
 
   // Check if Gmail is already connected
   useEffect(() => {
@@ -59,7 +61,6 @@ export default function GmailConnect({ userEmail, onConnected }) {
           }
 
           // Save tokens to database using the saved email
-          const userId = 'default-user';
           const result = await emailAccountsAPI.saveGmailTokens(userId, savedEmail || userEmail, {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
@@ -92,7 +93,6 @@ export default function GmailConnect({ userEmail, onConnected }) {
 
   async function checkConnection() {
     if (!userEmail) return;
-    const userId = 'default-user'; // Replace with actual user auth later
     const result = await emailAccountsAPI.getGmailTokens(userId, userEmail);
     console.log('[GmailConnect] checkConnection result:', result);
     setIsConnected(result.success && result.data?.gmail_connected);

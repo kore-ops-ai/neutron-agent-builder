@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { emailAccountsAPI } from './lib/supabase';
+import { getBrowserUserId } from './lib/userId';
 import GmailConnect from './components/GmailConnect';
 
 const N8N_URL = import.meta.env.VITE_N8N_LEAD_INTAKE_URL || '';
@@ -198,7 +199,6 @@ export default function App() {
   const [businessDescription, setBusinessDescription] = useState('');
   const [productsServices, setProductsServices] = useState('');
   const [valueProposition, setValueProposition] = useState('');
-  const [savedAccounts, setSavedAccounts] = useState([]);
   const [savingAccount, setSavingAccount] = useState(false);
 
   const [testEmail, setTestEmail] = useState('john.doe@example.com');
@@ -208,33 +208,10 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Load saved email accounts on mount
-  useEffect(() => {
-    async function loadAccounts() {
-      const userId = 'default-user'; // You can replace this with actual user auth later
-      const result = await emailAccountsAPI.getAll(userId);
-      if (result.success && result.data.length > 0) {
-        setSavedAccounts(result.data);
-        // Load the default account if it exists
-        const defaultAccount = result.data.find(acc => acc.is_default);
-        if (defaultAccount) {
-          setUserEmail(defaultAccount.email);
-          setUserName(defaultAccount.name);
-          setUserCompany(defaultAccount.company);
-          setEmailSignature(defaultAccount.signature || '');
-          setBusinessDescription(defaultAccount.business_description || '');
-          setProductsServices(defaultAccount.products_services || '');
-          setValueProposition(defaultAccount.value_proposition || '');
-        }
-      }
-    }
-    loadAccounts();
-  }, []);
-
   async function saveEmailAccount() {
     setSavingAccount(true);
     try {
-      const userId = 'default-user'; // You can replace this with actual user auth later
+      const userId = getBrowserUserId(); // Unique ID per browser
       const result = await emailAccountsAPI.save({
         userId,
         email: userEmail,
@@ -244,16 +221,11 @@ export default function App() {
         businessDescription,
         productsServices,
         valueProposition,
-        isDefault: savedAccounts.length === 0 // First account is default
+        isDefault: true // Each browser only has one account
       });
 
       if (result.success) {
         okToast('Email account saved!');
-        // Reload accounts
-        const allAccounts = await emailAccountsAPI.getAll(userId);
-        if (allAccounts.success) {
-          setSavedAccounts(allAccounts.data);
-        }
       } else {
         throw new Error(result.error);
       }
@@ -261,40 +233,6 @@ export default function App() {
       errToast(e.message || 'Failed to save account');
     } finally {
       setSavingAccount(false);
-    }
-  }
-
-  function loadSavedAccount(account) {
-    setUserEmail(account.email);
-    setUserName(account.name);
-    setUserCompany(account.company);
-    setEmailSignature(account.signature || '');
-    setBusinessDescription(account.business_description || '');
-    setProductsServices(account.products_services || '');
-    setValueProposition(account.value_proposition || '');
-    okToast('Account loaded!');
-  }
-
-  async function deleteEmailAccount(accountId, accountEmail) {
-    if (!confirm(`Are you sure you want to delete the account for ${accountEmail}?`)) {
-      return;
-    }
-
-    try {
-      const result = await emailAccountsAPI.delete(accountId);
-      if (result.success) {
-        okToast('Account deleted!');
-        // Reload accounts
-        const userId = 'default-user';
-        const allAccounts = await emailAccountsAPI.getAll(userId);
-        if (allAccounts.success) {
-          setSavedAccounts(allAccounts.data);
-        }
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (e) {
-      errToast(e.message || 'Failed to delete account');
     }
   }
 
@@ -642,12 +580,6 @@ export default function App() {
                 </svg>
                 {savingAccount ? 'Saving...' : 'Save Email Account'}
               </button>
-
-              {savedAccounts.length > 0 && (
-                <span className="text-xs text-white/50">
-                  {savedAccounts.length} saved account{savedAccounts.length !== 1 ? 's' : ''}
-                </span>
-              )}
             </div>
 
             {/* Gmail OAuth Connect */}
@@ -661,44 +593,6 @@ export default function App() {
               />
             </div>
 
-            {/* Saved Accounts List */}
-            {savedAccounts.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <div className="text-xs text-white/60 mb-2">Saved Accounts</div>
-                <div className="grid gap-2">
-                  {savedAccounts.map(account => (
-                    <div
-                      key={account.id}
-                      className="p-3 rounded bg-white/5 border border-white/10 flex items-center justify-between group hover:border-white/20 transition">
-                      <button
-                        onClick={() => loadSavedAccount(account)}
-                        className="flex-1 text-left">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <div className="text-sm font-medium">{account.name}</div>
-                            <div className="text-xs text-white/50">{account.email}</div>
-                          </div>
-                          {account.is_default && (
-                            <span className="text-xs px-2 py-1 rounded bg-white/10 text-white/60">Default</span>
-                          )}
-                        </div>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteEmailAccount(account.id, account.email);
-                        }}
-                        className="ml-2 p-2 rounded hover:bg-red-500/20 text-white/50 hover:text-red-400 transition"
-                        title="Delete account">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </section>
 
