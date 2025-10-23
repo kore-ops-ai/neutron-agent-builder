@@ -191,11 +191,11 @@ export default function App() {
   const [gmailEnabled, setGmailEnabled] = useState(true);
   const [memoryStrategy, setMemoryStrategy] = useState('light'); // light|session|long
 
-  // Email Account Settings
-  const [userEmail, setUserEmail] = useState('support@yourdomain.com');
-  const [userName, setUserName] = useState('Your Name');
-  const [userCompany, setUserCompany] = useState('Your Company');
-  const [emailSignature, setEmailSignature] = useState('Best regards,\nThe Team');
+  // Email Account Settings - Start with empty form for new users
+  const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState('');
+  const [userCompany, setUserCompany] = useState('');
+  const [emailSignature, setEmailSignature] = useState('');
   const [businessDescription, setBusinessDescription] = useState('');
   const [productsServices, setProductsServices] = useState('');
   const [valueProposition, setValueProposition] = useState('');
