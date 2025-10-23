@@ -34,12 +34,12 @@ export const emailAccountsAPI = {
   async save(account) {
     try {
       // First check if account already exists
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await supabase
         .from('email_accounts')
         .select('id')
         .eq('user_id', account.userId)
         .eq('email', account.email)
-        .single();
+        .maybeSingle();
 
       let result;
       if (existing) {
