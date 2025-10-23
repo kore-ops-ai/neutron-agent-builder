@@ -117,9 +117,9 @@ export const emailAccountsAPI = {
         .select('*')
         .eq('user_id', userId)
         .eq('is_default', true)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+      if (error) throw error;
       return { success: true, data };
     } catch (error) {
       console.error('Error fetching default email account:', error);
@@ -188,9 +188,9 @@ export const emailAccountsAPI = {
         .select('gmail_access_token, gmail_refresh_token, gmail_token_expiry, gmail_connected')
         .eq('user_id', userId)
         .eq('email', email)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
       return { success: true, data };
     } catch (error) {
       console.error('Error getting Gmail tokens:', error);
