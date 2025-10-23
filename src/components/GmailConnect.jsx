@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useGoogleLogin } from '@react-oauth/google';
 import { emailAccountsAPI } from '../lib/supabase';
 
 /**
@@ -10,6 +9,9 @@ export default function GmailConnect({ userEmail, onConnected }) {
   const [isConnected, setIsConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState(null);
+
+  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const REDIRECT_URI = window.location.origin;
 
   // Check if Gmail is already connected
   useEffect(() => {
@@ -23,9 +25,13 @@ export default function GmailConnect({ userEmail, onConnected }) {
       const code = urlParams.get('code');
       const state = urlParams.get('state');
 
-      if (code) {
+      if (code && state === 'gmail_oauth') {
         console.log('[GmailConnect] OAuth code received from redirect:', code);
         setConnecting(true);
+
+        // Retrieve saved email from sessionStorage
+        const savedEmail = sessionStorage.getItem('gmail_oauth_email');
+        console.log('[GmailConnect] Retrieved email from session:', savedEmail);
 
         try {
           // Exchange code for tokens
@@ -34,9 +40,9 @@ export default function GmailConnect({ userEmail, onConnected }) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               code,
-              client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+              client_id: GOOGLE_CLIENT_ID,
               client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET,
-              redirect_uri: window.location.origin,
+              redirect_uri: REDIRECT_URI,
               grant_type: 'authorization_code'
             })
           });
@@ -52,9 +58,9 @@ export default function GmailConnect({ userEmail, onConnected }) {
             throw new Error('No refresh token received. Please revoke access at myaccount.google.com/permissions and try again.');
           }
 
-          // Save tokens to database
+          // Save tokens to database using the saved email
           const userId = 'default-user';
-          const result = await emailAccountsAPI.saveGmailTokens(userId, userEmail, {
+          const result = await emailAccountsAPI.saveGmailTokens(userId, savedEmail || userEmail, {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             expires_in: tokens.expires_in
@@ -63,7 +69,8 @@ export default function GmailConnect({ userEmail, onConnected }) {
           if (result.success) {
             console.log('[GmailConnect] Tokens saved successfully!');
             setIsConnected(true);
-            // Clean up URL
+            // Clean up
+            sessionStorage.removeItem('gmail_oauth_email');
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
             throw new Error(result.error || 'Failed to save tokens');
@@ -71,7 +78,8 @@ export default function GmailConnect({ userEmail, onConnected }) {
         } catch (err) {
           console.error('[GmailConnect] Error handling OAuth callback:', err);
           setError(err.message);
-          // Clean up URL even on error
+          // Clean up URL and session even on error
+          sessionStorage.removeItem('gmail_oauth_email');
           window.history.replaceState({}, document.title, window.location.pathname);
         } finally {
           setConnecting(false);
@@ -80,7 +88,7 @@ export default function GmailConnect({ userEmail, onConnected }) {
     };
 
     handleOAuthCallback();
-  }, [userEmail]);
+  }, []);
 
   async function checkConnection() {
     if (!userEmail) return;
@@ -90,56 +98,30 @@ export default function GmailConnect({ userEmail, onConnected }) {
     setIsConnected(result.success && result.data?.gmail_connected);
   }
 
-  const login = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      console.log('[GmailConnect] OAuth success! Token response:', tokenResponse);
-      setConnecting(true);
-      setError(null);
+  // Manual OAuth redirect function
+  function startGmailOAuth() {
+    console.log('[GmailConnect] Starting Gmail OAuth redirect...');
 
-      try {
-        // Check if we got a refresh token
-        if (!tokenResponse.refresh_token) {
-          console.error('[GmailConnect] No refresh_token in response!');
-          throw new Error('No refresh token received. Please revoke access at myaccount.google.com/permissions and try again.');
-        }
+    // Save userEmail to sessionStorage so we can retrieve it after redirect
+    sessionStorage.setItem('gmail_oauth_email', userEmail);
 
-        console.log('[GmailConnect] Saving tokens to database for:', userEmail);
-        // Save tokens to Supabase
-        const userId = 'default-user';
-        const result = await emailAccountsAPI.saveGmailTokens(userId, userEmail, {
-          access_token: tokenResponse.access_token,
-          refresh_token: tokenResponse.refresh_token,
-          expires_in: tokenResponse.expires_in
-        });
+    // Build Google OAuth URL
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      response_type: 'code',
+      scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
+      access_type: 'offline',
+      prompt: 'consent', // Force consent to get refresh token
+      state: 'gmail_oauth' // To identify this flow
+    });
 
-        console.log('[GmailConnect] Save result:', result);
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    console.log('[GmailConnect] Redirecting to:', authUrl);
 
-        if (result.success) {
-          console.log('[GmailConnect] Tokens saved successfully!');
-          setIsConnected(true);
-          if (onConnected) onConnected(tokenResponse);
-        } else {
-          throw new Error(result.error || 'Failed to save Gmail tokens to database');
-        }
-      } catch (err) {
-        setError(err.message);
-        console.error('[GmailConnect] Error saving Gmail tokens:', err);
-      } finally {
-        setConnecting(false);
-      }
-    },
-    onError: (error) => {
-      setError('Failed to connect Gmail: ' + (error.error_description || error.message || 'Unknown error'));
-      console.error('Gmail OAuth error:', error);
-    },
-    scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
-    flow: 'auth-code',
-    ux_mode: 'redirect', // Use redirect instead of popup to avoid COOP issues
-    redirect_uri: window.location.origin,
-    // Force consent screen to always show and return refresh_token
-    prompt: 'consent',
-    access_type: 'offline'
-  });
+    // Redirect to Google
+    window.location.href = authUrl;
+  }
 
   return (
     <div className="space-y-2">
@@ -153,7 +135,7 @@ export default function GmailConnect({ userEmail, onConnected }) {
           </div>
         ) : (
           <button
-            onClick={() => login()}
+            onClick={startGmailOAuth}
             disabled={connecting || !userEmail}
             className="flex items-center gap-2 px-4 py-2 rounded bg-white text-black font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
             <svg className="w-4 h-4" viewBox="0 0 24 24">
