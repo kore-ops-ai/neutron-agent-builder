@@ -16,6 +16,72 @@ export default function GmailConnect({ userEmail, onConnected }) {
     checkConnection();
   }, [userEmail]);
 
+  // Handle OAuth redirect callback
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+
+      if (code) {
+        console.log('[GmailConnect] OAuth code received from redirect:', code);
+        setConnecting(true);
+
+        try {
+          // Exchange code for tokens
+          const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code,
+              client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+              client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET,
+              redirect_uri: window.location.origin,
+              grant_type: 'authorization_code'
+            })
+          });
+
+          const tokens = await tokenResponse.json();
+          console.log('[GmailConnect] Tokens received:', tokens);
+
+          if (tokens.error) {
+            throw new Error(tokens.error_description || tokens.error);
+          }
+
+          if (!tokens.refresh_token) {
+            throw new Error('No refresh token received. Please revoke access at myaccount.google.com/permissions and try again.');
+          }
+
+          // Save tokens to database
+          const userId = 'default-user';
+          const result = await emailAccountsAPI.saveGmailTokens(userId, userEmail, {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_in: tokens.expires_in
+          });
+
+          if (result.success) {
+            console.log('[GmailConnect] Tokens saved successfully!');
+            setIsConnected(true);
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else {
+            throw new Error(result.error || 'Failed to save tokens');
+          }
+        } catch (err) {
+          console.error('[GmailConnect] Error handling OAuth callback:', err);
+          setError(err.message);
+          // Clean up URL even on error
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } finally {
+          setConnecting(false);
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, [userEmail]);
+
   async function checkConnection() {
     if (!userEmail) return;
     const userId = 'default-user'; // Replace with actual user auth later
@@ -68,6 +134,8 @@ export default function GmailConnect({ userEmail, onConnected }) {
     },
     scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
     flow: 'auth-code',
+    ux_mode: 'redirect', // Use redirect instead of popup to avoid COOP issues
+    redirect_uri: window.location.origin,
     // Force consent screen to always show and return refresh_token
     prompt: 'consent',
     access_type: 'offline'
